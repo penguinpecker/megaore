@@ -1,15 +1,17 @@
 import { parseAbi } from "viem";
 
 export const CONTRACTS = {
-  oreToken: "0xf432bAca7C6CA54a2D02B6b30ccdE9d2cD104538",
-  nftStaking: "0x5AB3a027E6b2C3d2924ed3a6bB1935cc511fA8BF",
-  oreTreasury: "0xF746406FE2c4d3eC9aFd227e298E398209405f04",
-  oreGrid: "0x273A6aFEd1aA076202Fa28333dE4c4a88f9477Dd",
+  oreToken: "0xf06859C5A8028f957BEcA3b176510f6E00e68a26",
+  nftStaking: "0x0BBb89e2A710c96D3459b43d87653446320AaCc8",
+  oreTreasury: "0xD6f1c0b5C4ECFF143070060bC92aef61Ab51332A",
+  oreGrid: "0x23D682B07fFADf6F772E6A2310bD882E5B23982f",
 };
 
 export const GRID_ABI = parseAbi([
   "function joinRound(uint8 cell) external payable",
   "function resolveRound() external",
+  "function currentRoundId() view returns (uint256)",
+  "function rounds(uint256) view returns (uint64,uint64,uint256,uint16,uint8,bool,bool)",
   "function getCurrentRound() external view returns (uint256 roundId, uint64 startTime, uint64 endTime, uint256 totalDeposits, uint16 totalPlayers, bool resolved)",
   "function getCellCounts() external view returns (uint16[25])",
   "function getCellPlayers(uint256 roundId, uint8 cell) external view returns (address[])",

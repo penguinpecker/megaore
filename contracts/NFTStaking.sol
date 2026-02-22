@@ -5,6 +5,12 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+/**
+ * @title NFTStaking
+ * @notice Stake MegaBit NFTs for MegaORE protocol:
+ *         - +50% ORE mining boost in OreGrid
+ *         - ETH revenue share from OreTreasury
+ */
 contract NFTStaking is Ownable, ReentrancyGuard {
     IERC721 public immutable megabitNFT;
 

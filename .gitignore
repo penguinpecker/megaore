@@ -7,5 +7,5 @@ node_modules/
 frontend/megaore-resolver/
 artifacts/
 cache/
-megaore-v2/compose/dist/
-megaore-v2/compose/.compose/stage.db
+compose/dist/
+compose/.compose/stage.db

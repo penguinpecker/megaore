@@ -5,6 +5,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./OreToken.sol";
 
+/**
+ * @title OreTreasury
+ * @notice Receives 10% protocol fee from OreGrid and splits:
+ *         - 40% → Team wallet
+ *         - 30% → Buyback ORE from DEX + burn
+ *         - 30% → NFT staker rewards
+ */
 contract OreTreasury is Ownable, ReentrancyGuard {
     OreToken public immutable oreToken;
     address public stakingContract;

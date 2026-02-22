@@ -4,8 +4,17 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+/**
+ * @title OreToken (ORE)
+ * @notice Fair-launch ERC-20 for MegaORE protocol
+ *         - 5,000,000 hard cap
+ *         - Only authorized minter (OreGrid) can mint
+ *         - Anyone can burn their own tokens
+ *         - Owner can freeze minting permanently (one-way)
+ */
 contract OreToken is ERC20, Ownable {
     uint256 public constant MAX_SUPPLY = 5_000_000 ether;
+
     address public minter;
     bool public mintFrozen;
 
