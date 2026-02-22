@@ -107,6 +107,7 @@ export default function MegaOreV2() {
   const [smoothTime, setSmoothTime] = useState(0);
   const [selectedCell, setSelectedCell] = useState(null);
   const lastTapRef = useRef({ cell: -1, time: 0 });
+  const [hoveredCell, setHoveredCell] = useState(-1);
   const [claiming, setClaiming] = useState(false);
   const [feed, setFeed] = useState([]);
   const [scanLine, setScanLine] = useState(0);
@@ -690,9 +691,17 @@ export default function MegaOreV2() {
                       ...(state === "yours" ? S.cellYours : {}),
                       ...(state === "claimed" ? S.cellClaimed : {}),
                       ...(isSelected ? S.cellSelected : {}),
-                      transition: "all 0.4s ease, box-shadow 0.6s ease, opacity 0.3s ease",
+                      ...(hoveredCell === idx && state === "empty" && canClaim(idx) ? {
+                        transform: "translateY(-3px) scale(1.03)",
+                        boxShadow: "0 6px 16px rgba(255,136,0,0.15)",
+                        borderColor: "rgba(255,136,0,0.35)",
+                        background: "rgba(255,136,0,0.06)",
+                      } : {}),
+                      transition: "all 0.15s ease",
                       animationDelay: isWinnerCell ? "0s" : `${Math.floor(idx / GRID_SIZE) * 0.08}s`,
                     }}
+                    onMouseEnter={() => setHoveredCell(idx)}
+                    onMouseLeave={() => setHoveredCell(-1)}
                     onClick={() => {
                       if (!canClaim(idx)) return;
                       const now = Date.now();
