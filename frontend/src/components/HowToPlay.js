@@ -21,15 +21,15 @@ const STEPS = [
     num: "03",
     title: "CLAIM",
     subtitle: "Pick your cell",
-    desc: "Select one cell on the 5×5 grid before the 30-second round timer expires. You can only pick one cell per round. Cells with fewer miners = better odds.",
+    desc: "Select one cell on the 5×5 grid before the 30-second round timer expires. Multiple miners can share the same cell — if that cell wins, the pot is split equally. Cells with fewer miners mean a bigger payout if you win.",
     icon: "⛏",
     color: "#ff6633",
   },
   {
     num: "04",
     title: "RESOLVE",
-    subtitle: "Verifiable randomness decides",
-    desc: "When the timer hits zero, a drand beacon provides verifiable randomness to select the winning cell. No one — not even the developers — can predict or manipulate the outcome.",
+    subtitle: "Guaranteed winner from occupied cells",
+    desc: "When the timer hits zero, a drand beacon provides verifiable randomness to select the winning cell — but only from cells that have miners. If you're in the round, someone is guaranteed to win. No more empty-cell outcomes.",
     icon: "🎲",
     color: "#c466ff",
   },
@@ -37,38 +37,38 @@ const STEPS = [
     num: "05",
     title: "WIN",
     subtitle: "Collect your rewards",
-    desc: "If you're on the winning cell, you split the pot equally with other winners. You also earn ORE tokens. NFT stakers get a 50% ORE bonus. Hit the motherlode (1/625 chance) for a massive ORE jackpot.",
+    desc: "If you're on the winning cell, you split the pot equally with other miners on that cell. ETH is sent directly to your wallet. You also earn ORE tokens. NFT stakers get a 50% ORE bonus. Hit the motherlode (1/625 chance) for a massive ORE jackpot.",
     icon: "🎯",
     color: "#ffc800",
   },
 ];
 
 const GRID_DEMO = [
-  { label: "A1", state: "empty" },
-  { label: "A2", state: "claimed" },
-  { label: "A3", state: "empty" },
-  { label: "A4", state: "claimed" },
-  { label: "A5", state: "empty" },
-  { label: "B1", state: "empty" },
-  { label: "B2", state: "empty" },
-  { label: "B3", state: "yours" },
-  { label: "B4", state: "empty" },
-  { label: "B5", state: "claimed" },
-  { label: "C1", state: "claimed" },
-  { label: "C2", state: "empty" },
-  { label: "C3", state: "empty" },
-  { label: "C4", state: "empty" },
-  { label: "C5", state: "empty" },
-  { label: "D1", state: "empty" },
-  { label: "D2", state: "empty" },
-  { label: "D3", state: "claimed" },
-  { label: "D4", state: "empty" },
-  { label: "D5", state: "empty" },
-  { label: "E1", state: "empty" },
-  { label: "E2", state: "empty" },
-  { label: "E3", state: "empty" },
-  { label: "E4", state: "claimed" },
-  { label: "E5", state: "empty" },
+  { label: "A1", state: "empty", count: 0 },
+  { label: "A2", state: "claimed", count: 2 },
+  { label: "A3", state: "empty", count: 0 },
+  { label: "A4", state: "claimed", count: 1 },
+  { label: "A5", state: "empty", count: 0 },
+  { label: "B1", state: "empty", count: 0 },
+  { label: "B2", state: "empty", count: 0 },
+  { label: "B3", state: "yours", count: 3 },
+  { label: "B4", state: "empty", count: 0 },
+  { label: "B5", state: "claimed", count: 1 },
+  { label: "C1", state: "claimed", count: 1 },
+  { label: "C2", state: "empty", count: 0 },
+  { label: "C3", state: "empty", count: 0 },
+  { label: "C4", state: "empty", count: 0 },
+  { label: "C5", state: "empty", count: 0 },
+  { label: "D1", state: "empty", count: 0 },
+  { label: "D2", state: "empty", count: 0 },
+  { label: "D3", state: "claimed", count: 2 },
+  { label: "D4", state: "empty", count: 0 },
+  { label: "D5", state: "empty", count: 0 },
+  { label: "E1", state: "empty", count: 0 },
+  { label: "E2", state: "empty", count: 0 },
+  { label: "E3", state: "empty", count: 0 },
+  { label: "E4", state: "claimed", count: 1 },
+  { label: "E5", state: "empty", count: 0 },
 ];
 
 // Animated grid demo that cycles through game states
@@ -240,7 +240,7 @@ function AnimatedGrid() {
                 <span style={{ fontSize: 10 }}>⛏</span>
               )}
               {isClaimed && !isYours && !isWinner && (
-                <span style={{ fontSize: 8 }}>●</span>
+                <span style={{ fontSize: 8 }}>{cell.count > 1 ? `${cell.count}×` : "●"}</span>
               )}
             </div>
           );
@@ -459,6 +459,14 @@ function FAQ() {
       a: "Yes. MegaOre uses drand (League of Entropy) beacon randomness, which is publicly verifiable and cannot be manipulated by anyone — including the developers.",
     },
     {
+      q: "How does the guaranteed winner work?",
+      a: "The winning cell is chosen only from cells that have at least one miner. If you're in the round, someone is guaranteed to win — no more empty-cell outcomes eating the pot.",
+    },
+    {
+      q: "Can multiple players pick the same cell?",
+      a: "Yes. Multiple miners can share a cell. If that cell wins, the pot is split equally among all miners on it. Cells with fewer miners mean a bigger individual payout.",
+    },
+    {
       q: "What is the ORE token?",
       a: "ORE is an ERC-20 token with a hard cap of 5,000,000. It's minted to round winners. NFT stakers receive a 50% bonus on ORE rewards.",
     },
@@ -472,7 +480,7 @@ function FAQ() {
     },
     {
       q: "How do I withdraw my winnings?",
-      a: "Click the menu icon → WITHDRAW section. Enter any address and amount to send ETH from your MegaOre wallet. You can also export your private key.",
+      a: "ETH winnings are sent directly to your wallet when your cell wins. You can also withdraw ETH to any address via the menu. If a transfer ever fails, your ETH is safely escrowed and can be claimed via the Withdraw button.",
     },
   ];
 
@@ -1086,7 +1094,7 @@ export default function HowToPlay() {
         }}
       >
         <span style={{ fontSize: 10, color: "#3a4a5e" }}>
-          MegaORE Protocol v2.0 — MegaETH Mainnet
+          MegaORE Protocol v3.0 — MegaETH Mainnet
         </span>
         <span
           style={{
