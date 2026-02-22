@@ -691,7 +691,7 @@ export default function MegaOreV2() {
                       ...(state === "yours" ? S.cellYours : {}),
                       ...(state === "claimed" ? S.cellClaimed : {}),
                       ...(isSelected ? S.cellSelected : {}),
-                      ...(hoveredCell === idx && state === "empty" && canClaim(idx) ? {
+                      ...(hoveredCell === idx && state === "empty" ? {
                         transform: "translateY(-3px) scale(1.03)",
                         boxShadow: "0 6px 16px rgba(255,136,0,0.15)",
                         borderColor: "rgba(255,136,0,0.35)",
@@ -717,7 +717,6 @@ export default function MegaOreV2() {
                       }
                     }}
                     onDoubleClick={() => { if (canClaim(idx) && !claiming) claimCell(idx); }}
-                    disabled={!canClaim(idx)}
                   >
                     <span style={S.cellLabel}>{label}</span>
                     {state === "winner" && <span style={{ ...S.cellIcon, animation: "winnerPop 0.6s ease-out" }}>🎯</span>}
@@ -1196,11 +1195,11 @@ const S = {
   cell: {
     fontFamily: "'JetBrains Mono', monospace", position: "relative",
     aspectRatio: "1", minHeight: 64,
-    border: "1px solid rgba(255,136,0,0.15)", borderRadius: 6,
-    background: "rgba(255,136,0,0.03)", color: "#5a7a6e",
+    border: "1px solid rgba(255,136,0,0.08)", borderRadius: 6,
+    background: "rgba(255,136,0,0.02)", color: "#5a7a6e",
     cursor: "pointer", display: "flex", flexDirection: "column",
     alignItems: "center", justifyContent: "center", gap: 2,
-    fontSize: 11, fontWeight: 600, transition: "all 0.4s ease",
+    fontSize: 11, fontWeight: 600, transition: "all 0.15s ease",
     animation: "cellAppear 0.4s ease both",
     touchAction: "manipulation",
   },
