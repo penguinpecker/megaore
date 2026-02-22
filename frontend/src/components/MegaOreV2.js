@@ -61,7 +61,7 @@ const ROUND_DURATION = 30;
 const GRID_SIZE = 5;
 const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 const GRID_CELLS_SELECTOR = "0x6e0cf737";
-const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-backup-v4";
+const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-backup-v5";
 
 const CELL_LABELS = [];
 for (let r = 0; r < GRID_SIZE; r++)
