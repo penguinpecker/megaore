@@ -620,6 +620,7 @@ export default function MegaOreV2() {
           <span style={S.logo}>MEGA</span>
           <span style={S.logoSub}>ORE</span>
           <span style={S.badge}>MAINNET</span>
+          <a href="/how-to-play" style={{ ...S.badge, textDecoration: "none", cursor: "pointer", background: "rgba(255,136,0,0.06)", border: "1px solid rgba(255,136,0,0.15)" }}>? HOW TO PLAY</a>
         </div>
         <div style={S.hRight}>
           <span style={S.hStat} className="mega-header-stat">
