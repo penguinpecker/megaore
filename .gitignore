@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env
+.env.local
+.vercel/
+.DS_Store
+frontend/megaore-resolver/
+artifacts/
+cache/
+megaore-v2/compose/dist/
+megaore-v2/compose/.compose/stage.db

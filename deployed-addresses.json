@@ -1,0 +1,10 @@
+{
+  "oreToken": "0xf432bAca7C6CA54a2D02B6b30ccdE9d2cD104538",
+  "nftStaking": "0x5AB3a027E6b2C3d2924ed3a6bB1935cc511fA8BF",
+  "oreTreasury": "0xF746406FE2c4d3eC9aFd227e298E398209405f04",
+  "oreGrid": "0x273A6aFEd1aA076202Fa28333dE4c4a88f9477Dd",
+  "megabitNFT": "0x79225A7a6c89CC05006a3eEb561D72F8f624aB4E",
+  "teamWallet": "0xB022Cb7a3CA469B1846eEe93B69ceF57084e1410",
+  "chainId": 4326,
+  "network": "megaeth"
+}

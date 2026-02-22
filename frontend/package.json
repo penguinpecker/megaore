@@ -1,0 +1,18 @@
+{
+  "name": "megaore-terminal",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@privy-io/react-auth": "^3.14.1",
+    "next": "^14.2.0",
+    "porto": "^0.2.37",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "viem": "^2.21.0"
+  }
+}

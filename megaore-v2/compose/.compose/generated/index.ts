@@ -1,0 +1,1 @@
+export type Contracts = Record<string, unknown>;

@@ -1,0 +1,24 @@
+name: "megaore-vrf"
+api_version: "stable"
+
+tasks:
+  # Utility: get Compose wallet addresses
+  - path: "./src/tasks/generate-wallet.ts"
+    name: "generate_wallet"
+    triggers:
+      - type: "http"
+        authentication: "auth_token"
+
+  # Main: fulfill randomness when RandomnessRequested is emitted
+  - path: "./src/tasks/fulfill-randomness.ts"
+    name: "fulfill_randomness"
+    triggers:
+      - type: "onchain_event"
+        network: "megaeth_mainnet"
+        contract: "0x23D682B07fFADf6F772E6A2310bD882E5B23982f"
+        events:
+          - "RandomnessRequested(uint256,address)"
+    retry_config:
+      max_attempts: 3
+      initial_interval_ms: 1000
+      backoff_factor: 2
