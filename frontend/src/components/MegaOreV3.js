@@ -73,7 +73,7 @@ const ROUND_DURATION = 30;
 const GRID_SIZE = 5;
 const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 const GRID_CELLS_SELECTOR = "0x6e0cf737"; // getCellCounts() — returns uint16[25] player counts
-const RESOLVER_URL = ""; // V3 backup resolver — will be set after Supabase deploy
+const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-v3-backup";
 
 const CELL_LABELS = [];
 for (let r = 0; r < GRID_SIZE; r++)
