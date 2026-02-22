@@ -74,6 +74,7 @@ const GRID_SIZE = 5;
 const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 const GRID_CELLS_SELECTOR = "0x6e0cf737"; // getCellCounts() — returns uint16[25] player counts
 const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-v3-backup";
+const API_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-api";
 
 const CELL_LABELS = [];
 for (let r = 0; r < GRID_SIZE; r++)
@@ -133,7 +134,6 @@ export default function MegaOreV3() {
   const [userHistory, setUserHistory] = useState([]);
   const [userHistoryLoading, setUserHistoryLoading] = useState(false);
   const userHistoryLoaded = useRef(false);
-  const userHistoryCursor = useRef(0);
   const [scanLine, setScanLine] = useState(0);
   const [error, setError] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -326,96 +326,58 @@ export default function MegaOreV3() {
     return () => { clearInterval(pollRef.current); };
   }, [pollState]);
 
-  // ─── Load round history from contract ───
+  // ─── Load round history from Supabase ───
   const historyLoaded = useRef(false);
   const historyLoadingRef = useRef(false);
   const historyFullyLoadedRef = useRef(false);
+  const historyOffset = useRef(0);
+  const historyTotal = useRef(0);
 
-  const scanRoundsWithMiners = async (startFrom, count) => {
+  const fetchRoundHistory = async (offset, limit = HISTORY_PAGE_SIZE) => {
     if (historyLoadingRef.current) return [];
     historyLoadingRef.current = true;
     setHistoryLoading(true);
-    const results = [];
-    let cursor = startFrom;
     try {
-      while (results.length < count && cursor >= 1) {
-        const batchSize = Math.min(5, cursor);
-        const ids = [];
-        for (let i = 0; i < batchSize; i++) {
-          if (cursor - i >= 1) ids.push(cursor - i);
-        }
-        const batch = await Promise.all(
-          ids.map(rId =>
-            publicClient.readContract({
-              address: GRID_ADDR, abi: GRID_ABI, functionName: "rounds", args: [BigInt(rId)],
-            }).then(rd => ({
-              roundId: rId,
-              cell: Number(rd[4]),           // [4] = winningCell
-              miners: Number(rd[3]),          // [3] = totalMiners
-              pot: rd[2].toString(),
-              resolved: Number(rd[5]) === 1,  // [5] = resolved
-              txHash: null,
-            })).catch(() => null)
-          )
-        );
-        for (const r of batch) {
-          if (r && r.miners > 0 && results.length < count) {
-            results.push(r);
-          }
-        }
-        cursor -= batchSize;
+      const r = await fetch(`${API_URL}?action=rounds&limit=${limit}&offset=${offset}`);
+      const d = await r.json();
+      historyTotal.current = d.total || 0;
+      const results = (d.rounds || []).map(r => ({
+        roundId: r.round_id,
+        cell: r.winning_cell,
+        miners: r.total_miners,
+        pot: r.pot,
+        resolved: true,
+        txHash: r.tx_hash,
+      }));
+      historyOffset.current = offset + results.length;
+      if (historyOffset.current >= historyTotal.current) {
+        historyFullyLoadedRef.current = true;
+        setHistoryFullyLoaded(true);
       }
+      return results;
     } catch (e) {
-      console.error("History scan error:", e);
+      console.error("History fetch error:", e);
+      return [];
+    } finally {
+      historyLoadingRef.current = false;
+      setHistoryLoading(false);
     }
-    historyCursor.current = Math.max(0, cursor);
-    if (cursor < 1) {
-      historyFullyLoadedRef.current = true;
-      setHistoryFullyLoaded(true);
-    }
-    historyLoadingRef.current = false;
-    setHistoryLoading(false);
-    return results;
   };
 
-  // Initial load on first round detection (or fallback after 5s)
+  // Initial load
   useEffect(() => {
-    if (round > 1 && !historyLoaded.current) {
+    if (!historyLoaded.current) {
       historyLoaded.current = true;
-      historyCursor.current = round - 1;
-      scanRoundsWithMiners(round - 1, HISTORY_PAGE_SIZE).then(results => {
+      fetchRoundHistory(0, HISTORY_PAGE_SIZE).then(results => {
         if (results.length > 0) setRoundHistory(results);
       });
     }
-  }, [round]);
-
-  // Fallback: if after 5 seconds round is still 0, try fetching directly
-  useEffect(() => {
-    const fallbackTimer = setTimeout(async () => {
-      if (round === 0 || historyLoaded.current) return;
-      try {
-        const roundId = await publicClient.readContract({
-          address: GRID_ADDR, abi: GRID_ABI, functionName: "currentRoundId",
-        });
-        const rNum = Number(roundId);
-        if (rNum > 1 && !historyLoaded.current) {
-          setRound(rNum); // Force update round state
-          historyLoaded.current = true;
-          historyCursor.current = rNum - 1;
-          const results = await scanRoundsWithMiners(rNum - 1, HISTORY_PAGE_SIZE);
-          if (results.length > 0) setRoundHistory(results);
-        }
-      } catch (e) {
-        console.error("Fallback history load failed:", e);
-      }
-    }, 5000);
-    return () => clearTimeout(fallbackTimer);
   }, []);
 
   // Load older pages on demand
   const loadOlderHistory = () => {
     if (historyLoadingRef.current || historyFullyLoadedRef.current) return;
-    scanRoundsWithMiners(historyCursor.current, HISTORY_PAGE_SIZE).then(results => {
+    fetchRoundHistory(historyOffset.current, HISTORY_PAGE_SIZE).then(results => {
       if (results.length > 0) {
         setRoundHistory(prev => {
           const existingIds = new Set(prev.map(r => r.roundId));
@@ -426,111 +388,61 @@ export default function MegaOreV3() {
     });
   };
 
-  // ─── User History — scan past rounds for this user's entries ───
-  const scanUserHistory = async (startFrom, count) => {
-    if (!address || startFrom < 1) return [];
-    const results = [];
-    let cursor = startFrom;
+  // ─── User History from Supabase ───
+  const userHistoryOffset = useRef(0);
+  const userHistoryTotal = useRef(0);
+
+  const fetchUserHistory = async (offset, limit = 10) => {
+    if (!address) return [];
     try {
-      while (results.length < count && cursor >= 1) {
-        const batchSize = Math.min(5, cursor);
-        const ids = [];
-        for (let i = 0; i < batchSize; i++) {
-          if (cursor - i >= 1) ids.push(cursor - i);
-        }
-        const joined = await Promise.all(
-          ids.map(rId =>
-            publicClient.readContract({
-              address: GRID_ADDR, abi: GRID_ABI, functionName: "hasJoined",
-              args: [BigInt(rId), address],
-            }).then(j => j ? rId : null).catch(() => null)
-          )
-        );
-        const playedRounds = joined.filter(Boolean);
-        // Fetch details for rounds user played
-        const details = await Promise.all(
-          playedRounds.map(async (rId) => {
-            try {
-              const [rd, myCell] = await Promise.all([
-                publicClient.readContract({
-                  address: GRID_ADDR, abi: GRID_ABI, functionName: "rounds", args: [BigInt(rId)],
-                }),
-                publicClient.readContract({
-                  address: GRID_ADDR, abi: GRID_ABI, functionName: "playerCell", args: [BigInt(rId), address],
-                }),
-              ]);
-              const isResolved = Number(rd[5]) === 1;
-              const winCell = Number(rd[4]);
-              const pot = rd[2];
-              const cell = Number(myCell);
-              // V3: winner from occupied cells only, compare raw cell index
-              const won = isResolved && cell === winCell;
-              let payout = 0n;
-              if (won) {
-                try {
-                  const cellPlayers = await publicClient.readContract({
-                    address: GRID_ADDR, abi: GRID_ABI, functionName: "getCellPlayers",
-                    args: [BigInt(rId), winCell],
-                  });
-                  const winnersCount = cellPlayers.length || 1;
-                  const prizePool = pot * 90n / 100n;
-                  payout = prizePool / BigInt(winnersCount);
-                } catch { payout = pot * 90n / 100n; }
-              }
-              return {
-                roundId: rId,
-                cell,
-                won,
-                resolved: isResolved,
-                pot: pot.toString(),
-                payout: payout.toString(),
-                cost: "100000000000000", // 0.0001 ETH
-              };
-            } catch { return null; }
-          })
-        );
-        for (const d of details) {
-          if (d && results.length < count) results.push(d);
-        }
-        cursor -= batchSize;
-      }
-    } catch (e) { console.error("User history scan error:", e); }
-    userHistoryCursor.current = Math.max(0, cursor);
-    return results;
+      const r = await fetch(`${API_URL}?action=player_history&address=${address}&limit=${limit}&offset=${offset}`);
+      const d = await r.json();
+      userHistoryTotal.current = d.total || 0;
+      return (d.history || []).map(h => ({
+        roundId: h.round_id,
+        cell: h.cell,
+        won: h.won,
+        resolved: true,
+        pot: h.rounds?.pot || "0",
+        payout: h.payout || "0",
+        cost: "100000000000000", // 0.0001 ETH
+      }));
+    } catch (e) {
+      console.error("User history fetch error:", e);
+      return [];
+    }
   };
 
   useEffect(() => {
-    if (round > 1 && address && !userHistoryLoaded.current) {
+    if (address && !userHistoryLoaded.current) {
       userHistoryLoaded.current = true;
-      userHistoryCursor.current = round - 1;
+      userHistoryOffset.current = 0;
       setUserHistoryLoading(true);
-      scanUserHistory(round - 1, 10).then(results => {
+      fetchUserHistory(0, 10).then(results => {
         setUserHistory(results);
+        userHistoryOffset.current = results.length;
         setUserHistoryLoading(false);
       });
     }
-  }, [round, address]);
+  }, [address]);
 
-  // Update user history when a new round starts (check if user played previous round)
+  // Refresh user history when round changes (new resolved round might include user)
   useEffect(() => {
     if (round > 1 && address && userHistoryLoaded.current) {
-      const prevRound = round - 1;
-      // Check if we already have this round
-      if (userHistory.some(h => h.roundId === prevRound)) return;
-      publicClient.readContract({
-        address: GRID_ADDR, abi: GRID_ABI, functionName: "hasJoined",
-        args: [BigInt(prevRound), address],
-      }).then(async (joined) => {
-        if (!joined) return;
-        const entries = await scanUserHistory(prevRound, 1);
-        if (entries.length > 0) {
+      // Re-fetch latest to pick up new entries
+      fetchUserHistory(0, 10).then(results => {
+        if (results.length > 0) {
           setUserHistory(prev => {
-            const ids = new Set(prev.map(h => h.roundId));
-            const newOnes = entries.filter(e => !ids.has(e.roundId));
-            return [...newOnes, ...prev];
+            const merged = [...results];
+            const newIds = new Set(results.map(r => r.roundId));
+            for (const old of prev) {
+              if (!newIds.has(old.roundId)) merged.push(old);
+            }
+            return merged.sort((a, b) => b.roundId - a.roundId);
           });
+          userHistoryOffset.current = Math.max(userHistoryOffset.current, results.length);
         }
-      }).catch(() => {});
+      });
     }
   }, [round]);
 
@@ -757,15 +669,15 @@ export default function MegaOreV3() {
       <div style={S.crtLines} />
 
       {/* ─── HEADER ─── */}
-      <header style={S.header}>
+      <header style={S.header} className="mega-header">
         <div style={S.hLeft}>
           <span style={S.dot} />
           <span style={S.logo}>MEGA</span>
           <span style={S.logoSub}>ORE</span>
           <span style={S.badge}>MAINNET</span>
-          <a href="/how-to-play" style={{ ...S.badge, textDecoration: "none", cursor: "pointer", background: "rgba(255,136,0,0.06)", border: "1px solid rgba(255,136,0,0.15)" }}>? HOW TO PLAY</a>
+          <a href="/how-to-play" className="mega-header-stat" style={{ ...S.badge, textDecoration: "none", cursor: "pointer", background: "rgba(255,136,0,0.06)", border: "1px solid rgba(255,136,0,0.15)" }}>? HOW TO PLAY</a>
         </div>
-        <div style={S.hRight}>
+        <div style={{ ...S.hRight, gap: 10 }}>
           <span style={S.hStat} className="mega-header-stat">
             RND <b style={{ color: "#e0e8f0" }}>#{round}</b>
           </span>
@@ -786,7 +698,14 @@ export default function MegaOreV3() {
               {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "LOGOUT"}
             </button>
           )}
-          <button style={S.menuBtn} className="mega-menu-btn" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
+          <button style={{
+            ...S.menuBtn,
+            display: "none", alignItems: "center", justifyContent: "center",
+            width: 38, height: 38, fontSize: 18,
+            border: "1px solid rgba(255,136,0,0.3)",
+            background: "rgba(255,136,0,0.06)",
+            color: "#ff8800",
+          }} className="mega-menu-btn" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
         </div>
       </header>
 
@@ -903,6 +822,82 @@ export default function MegaOreV3() {
           )}
           {claiming && (
             <div style={{ ...S.claimingBar, maxWidth: 520, marginTop: 12 }}><div style={S.claimingDot} />CONFIRMING TX...</div>
+          )}
+
+          {/* ─── MOBILE USER HISTORY (hidden on desktop, shown on mobile) ─── */}
+          {authenticated && userHistory.length > 0 && (
+            <div className="mega-mobile-user-history" style={{
+              width: "100%", maxWidth: 520, marginTop: 14,
+              borderRadius: 10,
+              border: "1px solid rgba(255,136,0,0.2)",
+              background: "rgba(255,136,0,0.03)",
+              overflow: "hidden",
+            }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "10px 16px",
+                borderBottom: "1px solid rgba(255,136,0,0.1)",
+                background: "rgba(255,136,0,0.04)",
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#8a9bae" }}>YOUR HISTORY</span>
+                <span style={{ fontSize: 10, color: "#5a6a7e", letterSpacing: 1 }}>
+                  {userHistoryLoading ? "SCANNING..." : `${userHistory.length} ROUNDS`}
+                </span>
+              </div>
+              <div style={{
+                display: "grid", gridTemplateColumns: "40px 60px 32px 1fr",
+                padding: "8px 16px 4px", gap: 4,
+                borderBottom: "1px solid rgba(255,255,255,0.04)",
+              }}>
+                <span style={{ fontSize: 9, color: "#4a5a6e", letterSpacing: 1.5, fontWeight: 700 }}>RESULT</span>
+                <span style={{ fontSize: 9, color: "#4a5a6e", letterSpacing: 1.5, fontWeight: 700 }}>ROUND</span>
+                <span style={{ fontSize: 9, color: "#4a5a6e", letterSpacing: 1.5, fontWeight: 700 }}>CELL</span>
+                <span style={{ fontSize: 9, color: "#4a5a6e", letterSpacing: 1.5, fontWeight: 700, textAlign: "right" }}>P&L</span>
+              </div>
+              <div style={{ maxHeight: 200, overflowY: "auto" }}>
+                {userHistory.slice(0, 10).map((h, i) => {
+                  const net = h.won
+                    ? BigInt(h.payout) - BigInt(h.cost)
+                    : -BigInt(h.cost);
+                  const netEth = Number(net) / 1e18;
+                  const isWin = h.won;
+                  return (
+                    <div key={h.roundId} style={{
+                      display: "grid", gridTemplateColumns: "40px 60px 32px 1fr",
+                      padding: "7px 16px", gap: 4,
+                      borderBottom: "1px solid rgba(255,255,255,0.03)",
+                    }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: 1,
+                        padding: "2px 0", borderRadius: 3, textAlign: "center",
+                        background: isWin ? "rgba(0,204,136,0.12)" : "rgba(255,51,85,0.1)",
+                        color: isWin ? "#00cc88" : "#ff3355",
+                      }}>
+                        {isWin ? "WON" : "LOST"}
+                      </span>
+                      <span style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600, color: "#d0dce8" }}>#{h.roundId}</span>
+                      <span style={{ fontSize: 11, color: "#8a9bae" }}>{CELL_LABELS[h.cell] || "?"}</span>
+                      <span style={{
+                        fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
+                        color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
+                      }}>
+                        {isWin ? "+" : ""}{netEth.toFixed(4)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {userHistory.length > 10 && (
+                <div style={{
+                  padding: "8px 16px", textAlign: "center",
+                  borderTop: "1px solid rgba(255,136,0,0.1)",
+                  background: "rgba(255,136,0,0.02)",
+                  fontSize: 10, color: "#5a6a7e", letterSpacing: 1,
+                }}>
+                  OPEN MENU FOR FULL HISTORY
+                </div>
+              )}
+            </div>
           )}
 
           {/* ─── ROUND HISTORY TABLE (paginated) ─── */}
@@ -1057,8 +1052,25 @@ export default function MegaOreV3() {
         </div>
 
         {/* ─── SIDEBAR ─── */}
+        <div className={`mega-sidebar-backdrop ${mobileMenu ? "open" : ""}`} onClick={() => setMobileMenu(false)} />
         <div style={S.sidebar} className={`mega-sidebar ${mobileMenu ? "open" : ""}`}>
-          <button style={S.closeBtn} className="mega-close-sidebar" onClick={() => setMobileMenu(false)}>✕</button>
+          {/* Mobile sticky header */}
+          <div className="mega-sidebar-header">
+            <span style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, color: "#ff8800" }}>
+              ● MEGA<span style={{ color: "#e0e8f0" }}>ORE</span>
+            </span>
+            <button
+              onClick={() => setMobileMenu(false)}
+              style={{
+                background: "rgba(255,136,0,0.08)", border: "1px solid rgba(255,136,0,0.2)",
+                color: "#ff8800", fontSize: 14, fontWeight: 700, cursor: "pointer",
+                padding: "6px 12px", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: 1,
+              }}
+            >
+              ✕ CLOSE
+            </button>
+          </div>
 
           {/* Login prompt */}
           {!authenticated && (
@@ -1192,15 +1204,16 @@ export default function MegaOreV3() {
                     </div>
                   );
                 })}
-                {userHistory.length > 0 && userHistoryCursor.current > 0 && (
+                {userHistory.length > 0 && userHistoryOffset.current < userHistoryTotal.current && (
                   <button
                     onClick={() => {
                       setUserHistoryLoading(true);
-                      scanUserHistory(userHistoryCursor.current, 10).then(results => {
+                      fetchUserHistory(userHistoryOffset.current, 10).then(results => {
                         setUserHistory(prev => {
                           const ids = new Set(prev.map(h => h.roundId));
                           return [...prev, ...results.filter(r => !ids.has(r.roundId))];
                         });
+                        userHistoryOffset.current += results.length;
                         setUserHistoryLoading(false);
                       });
                     }}
@@ -1312,22 +1325,56 @@ export default function MegaOreV3() {
         }
         @media (max-width: 768px) {
           .mega-main { flex-direction: column !important; }
-          .mega-sidebar {
-            position: fixed !important; top: 0 !important; right: -100% !important;
-            width: 85vw !important; max-width: 380px !important; height: 100vh !important;
-            z-index: 1000 !important; transition: right 0.3s ease !important;
-            overflow-y: auto !important; background: #0d1117 !important;
-            border-left: 1px solid rgba(255,136,0,0.15) !important;
+          .mega-mobile-user-history { display: block !important; }
+          .mega-sidebar-backdrop {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 999;
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
           }
-          .mega-sidebar.open { right: 0 !important; }
-          .mega-grid-area { padding: 8px !important; }
+          .mega-sidebar-backdrop.open { display: block !important; }
+          .mega-sidebar {
+            position: fixed !important; top: 0 !important; right: 0 !important;
+            width: 88vw !important; max-width: 400px !important; height: 100vh !important;
+            height: 100dvh !important;
+            z-index: 1001 !important;
+            overflow-y: auto !important; overflow-x: hidden !important;
+            background: #0a0e14 !important;
+            border-left: 1px solid rgba(255,136,0,0.2) !important;
+            padding: 0 16px 16px !important;
+            max-height: 100vh !important; max-height: 100dvh !important;
+            transform: translateX(100%) !important;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            box-shadow: none !important;
+          }
+          .mega-sidebar.open {
+            transform: translateX(0) !important;
+            box-shadow: -8px 0 30px rgba(0,0,0,0.5) !important;
+          }
+          .mega-sidebar-header {
+            position: sticky !important; top: 0 !important; z-index: 10 !important;
+            background: #0a0e14 !important;
+            padding: 14px 0 10px !important;
+            margin: 0 -16px !important; padding-left: 16px !important; padding-right: 16px !important;
+            border-bottom: 1px solid rgba(255,136,0,0.1) !important;
+            display: flex !important; justify-content: space-between !important; align-items: center !important;
+          }
+          .mega-grid-area {
+            padding: 8px 12px !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            max-height: none !important;
+            justify-content: flex-start !important;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+          }
           .mega-header-stat { display: none !important; }
           .mega-menu-btn { display: flex !important; }
-          .mega-close-sidebar { display: flex !important; }
         }
         @media (min-width: 769px) {
           .mega-menu-btn { display: none !important; }
-          .mega-close-sidebar { display: none !important; }
+          .mega-sidebar-backdrop { display: none !important; }
+          .mega-sidebar-header { display: none !important; }
+          .mega-mobile-user-history { display: none !important; }
         }
       `}</style>
     </div>
@@ -1367,7 +1414,7 @@ const S = {
     background: "radial-gradient(ellipse at 30% 20%, #0f1923 0%, #0a0c0f 50%, #080a0d 100%)",
     color: "#c8d6e5", minHeight: "100vh",
     display: "flex", flexDirection: "column",
-    position: "relative", overflow: "hidden",
+    position: "relative", overflow: "hidden", overflowY: "auto",
   },
   scanOverlay: {
     position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -1400,7 +1447,7 @@ const S = {
   },
   menuBtn: { fontSize: 20, background: "none", border: "1px solid rgba(255,255,255,0.15)", color: "#c8d6e5", borderRadius: 6, padding: "4px 10px", cursor: "pointer" },
   main: { display: "flex", flex: 1, gap: 0, position: "relative", zIndex: 5 },
-  gridArea: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "16px 24px", minHeight: 0 },
+  gridArea: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "16px 24px", minHeight: 0, overflowY: "auto" },
   timerWrap: { width: "100%", maxWidth: 520, display: "flex", alignItems: "center", gap: 12, marginBottom: 12 },
   timerBarBg: { flex: 1, height: 12, borderRadius: 6, background: "rgba(255,255,255,0.08)", overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" },
   timerBarFill: { height: "100%", borderRadius: 6 },
