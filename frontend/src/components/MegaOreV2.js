@@ -106,6 +106,7 @@ export default function MegaOreV2() {
   // UI state
   const [smoothTime, setSmoothTime] = useState(0);
   const [selectedCell, setSelectedCell] = useState(null);
+  const lastTapRef = useRef({ cell: -1, time: 0 });
   const [claiming, setClaiming] = useState(false);
   const [feed, setFeed] = useState([]);
   const [scanLine, setScanLine] = useState(0);
@@ -279,19 +280,10 @@ export default function MegaOreV2() {
 
   useEffect(() => {
     pollState();
-    // Fast poll: 1s when timer near zero or resolved (drives resolver retries), 3s otherwise
-    const getInterval = () => (smoothTime <= 3 || resolved) ? 1000 : 3000;
-    const startPoll = () => {
-      clearInterval(pollRef.current);
-      pollRef.current = setInterval(pollState, getInterval());
-    };
-    startPoll();
-    // Re-evaluate interval as timer changes
-    const recheckIv = setInterval(() => {
-      startPoll();
-    }, 2000);
-    return () => { clearInterval(pollRef.current); clearInterval(recheckIv); };
-  }, [pollState, smoothTime <= 3, resolved]);
+    // Fast poll: 1s always for real-time grid updates
+    pollRef.current = setInterval(pollState, 1000);
+    return () => { clearInterval(pollRef.current); };
+  }, [pollState]);
 
   // ─── Load round history from contract ───
   const historyLoaded = useRef(false);
@@ -701,7 +693,21 @@ export default function MegaOreV2() {
                       transition: "all 0.4s ease, box-shadow 0.6s ease, opacity 0.3s ease",
                       animationDelay: isWinnerCell ? "0s" : `${Math.floor(idx / GRID_SIZE) * 0.08}s`,
                     }}
-                    onClick={() => { if (canClaim(idx)) setSelectedCell(idx); }}
+                    onClick={() => {
+                      if (!canClaim(idx)) return;
+                      const now = Date.now();
+                      const last = lastTapRef.current;
+                      if (last.cell === idx && now - last.time < 400 && !claiming) {
+                        // Double-tap/click — mine directly
+                        claimCell(idx);
+                        lastTapRef.current = { cell: -1, time: 0 };
+                      } else {
+                        // First tap — select
+                        setSelectedCell(idx);
+                        lastTapRef.current = { cell: idx, time: now };
+                      }
+                    }}
+                    onDoubleClick={() => { if (canClaim(idx) && !claiming) claimCell(idx); }}
                     disabled={!canClaim(idx)}
                   >
                     <span style={S.cellLabel}>{label}</span>
@@ -729,6 +735,16 @@ export default function MegaOreV2() {
               }} />
             ))}
           </div>
+
+          {/* Claim button — below grid */}
+          {selectedCell !== null && !claiming && authenticated && (
+            <button style={{ ...S.claimBtn, maxWidth: 520, marginTop: 12 }} onClick={() => claimCell(selectedCell)}>
+              ⛏ CLAIM CELL {CELL_LABELS[selectedCell]} — {CELL_COST} ETH
+            </button>
+          )}
+          {claiming && (
+            <div style={{ ...S.claimingBar, maxWidth: 520, marginTop: 12 }}><div style={S.claimingDot} />CONFIRMING TX...</div>
+          )}
 
           {/* ─── ROUND HISTORY TABLE (paginated) ─── */}
           {(() => {
@@ -970,16 +986,6 @@ export default function MegaOreV2() {
             </div>
           )}
 
-          {/* Claim */}
-          {selectedCell !== null && !claiming && authenticated && (
-            <button style={S.claimBtn} onClick={() => claimCell(selectedCell)}>
-              ⛏ CLAIM CELL {CELL_LABELS[selectedCell]} — {CELL_COST} ETH
-            </button>
-          )}
-          {claiming && (
-            <div style={S.claimingBar}><div style={S.claimingDot} />CONFIRMING TX...</div>
-          )}
-
           {/* Error */}
           {error && (
             <div style={S.errorBox} onClick={() => setError(null)}>⚠ {error.slice(0, 120)}</div>
@@ -1187,6 +1193,7 @@ const S = {
     alignItems: "center", justifyContent: "center", gap: 2,
     fontSize: 11, fontWeight: 600, transition: "all 0.4s ease",
     animation: "cellAppear 0.4s ease both",
+    touchAction: "manipulation",
   },
   cellClaimed: { background: "rgba(255,102,51,0.08)", borderColor: "rgba(255,102,51,0.3)", color: "#ff6633", cursor: "default" },
   cellYours: { background: "rgba(255,136,0,0.1)", borderColor: "rgba(255,136,0,0.5)", color: "#ff8800", animation: "glow 2s ease-in-out infinite" },
