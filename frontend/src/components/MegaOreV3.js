@@ -691,10 +691,21 @@ export default function MegaOreV3() {
               </span>
             </>
           )}
+          {/* Mobile: show balances inline */}
+          {authenticated && (
+            <span className="mega-mobile-balances" style={{
+              display: "none", alignItems: "center", gap: 8,
+              fontSize: 11, letterSpacing: 0.5,
+            }}>
+              <span style={{ color: "#ff8800" }}>{fmt(ethBalance, 4)} <b>ETH</b></span>
+              <span style={{ color: "#4a5a6e" }}>|</span>
+              <span style={{ color: "#ff6633" }}>{fmt(oreBalance, 2)} <b>ORE</b></span>
+            </span>
+          )}
           {!authenticated ? (
             <button style={S.loginBtn} onClick={login}>⚡ LOGIN</button>
           ) : (
-            <button style={S.loginBtn} onClick={logout}>
+            <button style={S.loginBtn} className="mega-header-wallet-btn" onClick={logout}>
               {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "LOGOUT"}
             </button>
           )}
@@ -814,6 +825,18 @@ export default function MegaOreV3() {
             ))}
           </div>
 
+          {/* Quick instruction */}
+          {authenticated && playerCell < 0 && !resolved && smoothTime > 0 && (
+            <div style={{
+              width: "100%", maxWidth: 520, textAlign: "center",
+              padding: "8px 12px", marginTop: 6,
+              fontSize: 10, letterSpacing: 1.5, color: "#4a5a6e",
+              fontFamily: "'JetBrains Mono', monospace",
+            }}>
+              ◆ TAP TO SELECT · DOUBLE-TAP TO MINE ◆
+            </div>
+          )}
+
           {/* Claim button — below grid */}
           {selectedCell !== null && !claiming && authenticated && (
             <button style={{ ...S.claimBtn, maxWidth: 520, marginTop: 12 }} onClick={() => claimCell(selectedCell)}>
@@ -856,11 +879,10 @@ export default function MegaOreV3() {
               </div>
               <div style={{ maxHeight: 200, overflowY: "auto" }}>
                 {userHistory.slice(0, 10).map((h, i) => {
-                  const net = h.won
-                    ? BigInt(h.payout) - BigInt(h.cost)
-                    : -BigInt(h.cost);
-                  const netEth = Number(net) / 1e18;
                   const isWin = h.won;
+                  const displayAmt = isWin
+                    ? Number(BigInt(h.payout)) / 1e18
+                    : Number(BigInt(h.cost)) / 1e18;
                   return (
                     <div key={h.roundId} style={{
                       display: "grid", gridTemplateColumns: "40px 60px 32px 1fr",
@@ -881,7 +903,7 @@ export default function MegaOreV3() {
                         fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
                         color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
                       }}>
-                        {isWin ? "+" : ""}{netEth.toFixed(4)}
+                        {isWin ? "+" : "-"}{displayAmt.toFixed(4)}
                       </span>
                     </div>
                   );
@@ -1173,11 +1195,10 @@ export default function MegaOreV3() {
                   <div style={{ fontSize: 11, color: "#4a5a6e", padding: "10px 0", fontStyle: "italic" }}>No rounds played yet</div>
                 )}
                 {userHistory.map((h, i) => {
-                  const net = h.won
-                    ? BigInt(h.payout) - BigInt(h.cost)
-                    : -BigInt(h.cost);
-                  const netEth = Number(net) / 1e18;
                   const isWin = h.won;
+                  const displayAmt = isWin
+                    ? Number(BigInt(h.payout)) / 1e18
+                    : Number(BigInt(h.cost)) / 1e18;
                   return (
                     <div key={h.roundId} style={{
                       display: "grid", gridTemplateColumns: "38px 62px 28px 1fr", alignItems: "center",
@@ -1199,7 +1220,7 @@ export default function MegaOreV3() {
                         fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
                         color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
                       }}>
-                        {isWin ? "+" : ""}{netEth.toFixed(4)} ETH
+                        {isWin ? "+" : "-"}{displayAmt.toFixed(4)} ETH
                       </span>
                     </div>
                   );
@@ -1368,6 +1389,8 @@ export default function MegaOreV3() {
             min-height: 0 !important;
           }
           .mega-header-stat { display: none !important; }
+          .mega-mobile-balances { display: flex !important; }
+          .mega-header-wallet-btn { display: none !important; }
           .mega-menu-btn { display: flex !important; }
         }
         @media (min-width: 769px) {
