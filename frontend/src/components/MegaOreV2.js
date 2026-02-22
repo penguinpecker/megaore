@@ -46,6 +46,12 @@ const GRID_ABI = [
     inputs: [], outputs: [{ name: "", type: "uint256" }] },
   { name: "canResolve", type: "function", stateMutability: "view",
     inputs: [], outputs: [{ name: "", type: "bool" }] },
+  { name: "hasJoined", type: "function", stateMutability: "view",
+    inputs: [{ name: "roundId", type: "uint256" }, { name: "player", type: "address" }],
+    outputs: [{ name: "", type: "bool" }] },
+  { name: "getCellPlayers", type: "function", stateMutability: "view",
+    inputs: [{ name: "roundId", type: "uint256" }, { name: "cell", type: "uint8" }],
+    outputs: [{ name: "", type: "address[]" }] },
 ];
 
 const TOKEN_ABI = [
@@ -110,6 +116,10 @@ export default function MegaOreV2() {
   const [hoveredCell, setHoveredCell] = useState(-1);
   const [claiming, setClaiming] = useState(false);
   const [feed, setFeed] = useState([]);
+  const [userHistory, setUserHistory] = useState([]);
+  const [userHistoryLoading, setUserHistoryLoading] = useState(false);
+  const userHistoryLoaded = useRef(false);
+  const userHistoryCursor = useRef(0);
   const [scanLine, setScanLine] = useState(0);
   const [error, setError] = useState(null);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -385,6 +395,113 @@ export default function MegaOreV2() {
       }
     });
   };
+
+  // ─── User History — scan past rounds for this user's entries ───
+  const scanUserHistory = async (startFrom, count) => {
+    if (!address || startFrom < 1) return [];
+    const results = [];
+    let cursor = startFrom;
+    try {
+      while (results.length < count && cursor >= 1) {
+        const batchSize = Math.min(5, cursor);
+        const ids = [];
+        for (let i = 0; i < batchSize; i++) {
+          if (cursor - i >= 1) ids.push(cursor - i);
+        }
+        const joined = await Promise.all(
+          ids.map(rId =>
+            publicClient.readContract({
+              address: GRID_ADDR, abi: GRID_ABI, functionName: "hasJoined",
+              args: [BigInt(rId), address],
+            }).then(j => j ? rId : null).catch(() => null)
+          )
+        );
+        const playedRounds = joined.filter(Boolean);
+        // Fetch details for rounds user played
+        const details = await Promise.all(
+          playedRounds.map(async (rId) => {
+            try {
+              const [rd, myCell] = await Promise.all([
+                publicClient.readContract({
+                  address: GRID_ADDR, abi: GRID_ABI, functionName: "rounds", args: [BigInt(rId)],
+                }),
+                publicClient.readContract({
+                  address: GRID_ADDR, abi: GRID_ABI, functionName: "playerCell", args: [BigInt(rId), address],
+                }),
+              ]);
+              const isResolved = Number(rd[5]) === 1;
+              const winCell = Number(rd[4]);
+              const pot = rd[2];
+              const cell = Number(myCell);
+              const won = isResolved && cell === winCell && cell > 0;
+              let payout = 0n;
+              if (won) {
+                try {
+                  const cellPlayers = await publicClient.readContract({
+                    address: GRID_ADDR, abi: GRID_ABI, functionName: "getCellPlayers",
+                    args: [BigInt(rId), winCell],
+                  });
+                  const winnersCount = cellPlayers.length || 1;
+                  const prizePool = pot * 90n / 100n;
+                  payout = prizePool / BigInt(winnersCount);
+                } catch { payout = pot * 90n / 100n; }
+              }
+              return {
+                roundId: rId,
+                cell,
+                won,
+                resolved: isResolved,
+                pot: pot.toString(),
+                payout: payout.toString(),
+                cost: "100000000000000", // 0.0001 ETH
+              };
+            } catch { return null; }
+          })
+        );
+        for (const d of details) {
+          if (d && results.length < count) results.push(d);
+        }
+        cursor -= batchSize;
+      }
+    } catch (e) { console.error("User history scan error:", e); }
+    userHistoryCursor.current = Math.max(0, cursor);
+    return results;
+  };
+
+  useEffect(() => {
+    if (round > 1 && address && !userHistoryLoaded.current) {
+      userHistoryLoaded.current = true;
+      userHistoryCursor.current = round - 1;
+      setUserHistoryLoading(true);
+      scanUserHistory(round - 1, 10).then(results => {
+        setUserHistory(results);
+        setUserHistoryLoading(false);
+      });
+    }
+  }, [round, address]);
+
+  // Update user history when a new round starts (check if user played previous round)
+  useEffect(() => {
+    if (round > 1 && address && userHistoryLoaded.current) {
+      const prevRound = round - 1;
+      // Check if we already have this round
+      if (userHistory.some(h => h.roundId === prevRound)) return;
+      publicClient.readContract({
+        address: GRID_ADDR, abi: GRID_ABI, functionName: "hasJoined",
+        args: [BigInt(prevRound), address],
+      }).then(async (joined) => {
+        if (!joined) return;
+        const entries = await scanUserHistory(prevRound, 1);
+        if (entries.length > 0) {
+          setUserHistory(prev => {
+            const ids = new Set(prev.map(h => h.roundId));
+            const newOnes = entries.filter(e => !ids.has(e.roundId));
+            return [...newOnes, ...prev];
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [round]);
 
   // ─── Round Change — fetch previous round data, save to history, reset grid ───
   useEffect(() => {
@@ -997,6 +1114,75 @@ export default function MegaOreV2() {
           {/* Error */}
           {error && (
             <div style={S.errorBox} onClick={() => setError(null)}>⚠ {error.slice(0, 120)}</div>
+          )}
+
+          {/* User History */}
+          {authenticated && (
+            <Panel title="YOUR HISTORY">
+              <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                {userHistoryLoading && userHistory.length === 0 && (
+                  <div style={{ fontSize: 11, color: "#4a5a6e", padding: "10px 0", fontStyle: "italic" }}>Scanning past rounds...</div>
+                )}
+                {!userHistoryLoading && userHistory.length === 0 && (
+                  <div style={{ fontSize: 11, color: "#4a5a6e", padding: "10px 0", fontStyle: "italic" }}>No rounds played yet</div>
+                )}
+                {userHistory.map((h, i) => {
+                  const net = h.won
+                    ? BigInt(h.payout) - BigInt(h.cost)
+                    : -BigInt(h.cost);
+                  const netEth = Number(net) / 1e18;
+                  const isWin = h.won;
+                  return (
+                    <div key={h.roundId} style={{
+                      display: "grid", gridTemplateColumns: "38px 62px 28px 1fr", alignItems: "center",
+                      padding: "6px 0", gap: 6,
+                      borderBottom: i < userHistory.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none",
+                      fontSize: 11,
+                    }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: 1,
+                        padding: "2px 5px", borderRadius: 3, textAlign: "center",
+                        background: isWin ? "rgba(0,204,136,0.12)" : "rgba(255,51,85,0.1)",
+                        color: isWin ? "#00cc88" : "#ff3355",
+                      }}>
+                        {isWin ? "WON" : "LOST"}
+                      </span>
+                      <span style={{ color: "#6a7b8e" }}>R#{h.roundId}</span>
+                      <span style={{ color: "#4a5a6e", fontSize: 10 }}>{CELL_LABELS[h.cell] || "?"}</span>
+                      <span style={{
+                        fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
+                        color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
+                      }}>
+                        {isWin ? "+" : ""}{netEth.toFixed(4)} ETH
+                      </span>
+                    </div>
+                  );
+                })}
+                {userHistory.length > 0 && userHistoryCursor.current > 0 && (
+                  <button
+                    onClick={() => {
+                      setUserHistoryLoading(true);
+                      scanUserHistory(userHistoryCursor.current, 10).then(results => {
+                        setUserHistory(prev => {
+                          const ids = new Set(prev.map(h => h.roundId));
+                          return [...prev, ...results.filter(r => !ids.has(r.roundId))];
+                        });
+                        setUserHistoryLoading(false);
+                      });
+                    }}
+                    style={{
+                      width: "100%", padding: "8px 0", marginTop: 6,
+                      background: "none", border: "1px solid rgba(255,136,0,0.15)",
+                      borderRadius: 4, color: "#ff8800", fontSize: 10,
+                      fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+                      letterSpacing: 1, cursor: "pointer",
+                    }}
+                  >
+                    {userHistoryLoading ? "SCANNING..." : "LOAD MORE"}
+                  </button>
+                )}
+              </div>
+            </Panel>
           )}
 
           {/* Feed */}
