@@ -1,10 +1,10 @@
 "use client";
 import dynamic from "next/dynamic";
 
-const MegaOreV2 = dynamic(() => import("../components/MegaOreV2"), {
+const MegaOreV3 = dynamic(() => import("../components/MegaOreV3"), {
   ssr: false,
 });
 
 export default function Home() {
-  return <MegaOreV2 />;
+  return <MegaOreV3 />;
 }
