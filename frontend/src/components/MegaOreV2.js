@@ -213,7 +213,7 @@ export default function MegaOreV2() {
               .then(r => r.json())
               .then(d => {
                 console.log("[MegaORE] Resolver response:", d);
-                if (d.resolved && d.txHash) resolverTxHash.current = d.txHash;
+                if ((d.action === "resolved" || d.action === "fulfill") && d.tx) resolverTxHash.current = d.tx;
               })
               .catch(err => console.error("[MegaORE] Resolver fetch error:", err));
           }
