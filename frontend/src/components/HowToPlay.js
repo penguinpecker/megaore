@@ -5,15 +5,15 @@ const STEPS = [
     num: "01",
     title: "CONNECT",
     subtitle: "Initialize your terminal",
-    desc: "Hit LOGIN to create or connect your wallet. MegaOre uses embedded wallets — no browser extension needed. Your wallet is created instantly via email, Google, or existing wallet.",
+    desc: "Hit LOGIN to create or connect your wallet. The Grid uses embedded wallets — no browser extension needed. Your wallet is created instantly via email, Google, or existing wallet.",
     icon: "⚡",
     color: "#ff8800",
   },
   {
     num: "02",
     title: "FUND",
-    subtitle: "Load your mining rig",
-    desc: "Deposit ETH to your MegaOre wallet on MegaETH chain. Each mining claim costs 0.0001 ETH. Use the sidebar to view your balance and withdraw anytime.",
+    subtitle: "Fund your wallet",
+    desc: "Deposit ETH to your The Grid wallet on MegaETH chain. Each grid claim costs 0.0001 ETH. Use the sidebar to view your balance and withdraw anytime.",
     icon: "◆",
     color: "#00b4ff",
   },
@@ -21,7 +21,7 @@ const STEPS = [
     num: "03",
     title: "CLAIM",
     subtitle: "Pick your cell",
-    desc: "Select one cell on the 5×5 grid before the 30-second round timer expires. Multiple miners can share the same cell — if that cell wins, the pot is split equally. Cells with fewer miners mean a bigger payout if you win.",
+    desc: "Select one cell on the 5×5 grid before the 30-second round timer expires. Multiple players can share the same cell — if that cell wins, the pot is split equally. Cells with fewer players mean a bigger payout if you win.",
     icon: "⛏",
     color: "#ff6633",
   },
@@ -29,7 +29,7 @@ const STEPS = [
     num: "04",
     title: "RESOLVE",
     subtitle: "Guaranteed winner from occupied cells",
-    desc: "When the timer hits zero, a drand beacon provides verifiable randomness to select the winning cell — but only from cells that have miners. If you're in the round, someone is guaranteed to win. No more empty-cell outcomes.",
+    desc: "When the timer hits zero, a drand beacon provides verifiable randomness to select the winning cell — but only from cells that have players. If you're in the round, someone is guaranteed to win. No more empty-cell outcomes.",
     icon: "🎲",
     color: "#c466ff",
   },
@@ -37,7 +37,7 @@ const STEPS = [
     num: "05",
     title: "WIN",
     subtitle: "Collect your rewards",
-    desc: "If you're on the winning cell, you split the pot equally with other miners on that cell. ETH is sent directly to your wallet. You also earn ORE tokens. NFT stakers get a 50% ORE bonus. Hit the motherlode (1/625 chance) for a massive ORE jackpot.",
+    desc: "If you're on the winning cell, you split the pot equally with other players on that cell. ETH is sent directly to your wallet. You also earn GRID tokens. NFT stakers get a 50% GRID bonus. Hit the motherlode (1/625 chance) for a massive GRID jackpot.",
     icon: "🎯",
     color: "#ffc800",
   },
@@ -266,7 +266,7 @@ function FlowDiagram() {
     { label: "CLAIM CELL", icon: "⛏", x: 1 },
     { label: "TIMER ENDS", icon: "⏱", x: 2 },
     { label: "drand VRF", icon: "🎲", x: 3 },
-    { label: "WIN ETH+ORE", icon: "💰", x: 4 },
+    { label: "WIN ETH+GRID", icon: "💰", x: 4 },
   ];
 
   return (
@@ -373,7 +373,7 @@ function FlowDiagram() {
 function PayoutBreakdown() {
   const [hovered, setHovered] = useState(-1);
   const segments = [
-    { label: "WINNERS", pct: 90, color: "#ff8800", desc: "Split equally among all miners on the winning cell" },
+    { label: "WINNERS", pct: 90, color: "#ff8800", desc: "Split equally among all players on the winning cell" },
     { label: "PROTOCOL FEE", pct: 10, color: "#ff6633", desc: "Supports development, buybacks, and NFT staker rewards" },
   ];
 
@@ -451,32 +451,32 @@ function FAQ() {
   const [open, setOpen] = useState(-1);
   const items = [
     {
-      q: "What chain is MegaOre on?",
-      a: "MegaETH — a high-performance L2 with 10ms block times. This enables 30-second mining rounds with near-instant settlement.",
+      q: "What chain is The Grid on?",
+      a: "MegaETH — a high-performance L2 with 10ms block times. This enables 30-second game rounds with near-instant settlement.",
     },
     {
       q: "Is the randomness fair?",
-      a: "Yes. MegaOre uses drand (League of Entropy) beacon randomness, which is publicly verifiable and cannot be manipulated by anyone — including the developers.",
+      a: "Yes. The Grid uses drand (League of Entropy) beacon randomness, which is publicly verifiable and cannot be manipulated by anyone — including the developers.",
     },
     {
       q: "How does the guaranteed winner work?",
-      a: "The winning cell is chosen only from cells that have at least one miner. If you're in the round, someone is guaranteed to win — no more empty-cell outcomes eating the pot.",
+      a: "The winning cell is chosen only from cells that have at least one player. If you're in the round, someone is guaranteed to win — no more empty-cell outcomes eating the pot.",
     },
     {
       q: "Can multiple players pick the same cell?",
-      a: "Yes. Multiple miners can share a cell. If that cell wins, the pot is split equally among all miners on it. Cells with fewer miners mean a bigger individual payout.",
+      a: "Yes. Multiple players can share a cell. If that cell wins, the pot is split equally among all players on it. Cells with fewer players mean a bigger individual payout.",
     },
     {
-      q: "What is the ORE token?",
-      a: "ORE is an ERC-20 token with a hard cap of 5,000,000. It's minted to round winners. NFT stakers receive a 50% bonus on ORE rewards.",
+      q: "What is the GRID token?",
+      a: "GRID is an ERC-20 token with a hard cap of 5,000,000. It's minted to round winners. NFT stakers receive a 50% bonus on GRID rewards.",
     },
     {
       q: "What is the Motherlode?",
-      a: "Each round with miners has a 1/625 chance (0.16%) of triggering the Motherlode — a massive ORE jackpot that accumulates every round until it hits.",
+      a: "Each round with players has a 1/625 chance (0.16%) of triggering the Motherlode — a massive GRID jackpot that accumulates every round until it hits.",
     },
     {
       q: "Do I need MetaMask?",
-      a: "No. MegaOre uses Privy embedded wallets. Login with email, Google, or any wallet. Your keys are created and stored securely without any extension.",
+      a: "No. The Grid uses Privy embedded wallets. Login with email, Google, or any wallet. Your keys are created and stored securely without any extension.",
     },
     {
       q: "How do I withdraw my winnings?",
@@ -666,7 +666,7 @@ export default function HowToPlay() {
               letterSpacing: 2,
             }}
           >
-            MEGA
+            THE
           </span>
           <span
             style={{
@@ -677,7 +677,7 @@ export default function HowToPlay() {
               letterSpacing: 2,
             }}
           >
-            ORE
+            GRID
           </span>
           <span
             style={{
@@ -757,7 +757,7 @@ export default function HowToPlay() {
               lineHeight: 1.2,
             }}
           >
-            HOW TO MINE
+            HOW TO PLAY
           </h1>
           <p
             style={{
@@ -771,7 +771,7 @@ export default function HowToPlay() {
             }}
           >
             5×5 grid. 30 seconds. Pick a cell. If randomness lands on yours
-            — you win ETH and ORE tokens.
+            — you win ETH and GRID tokens.
           </p>
         </div>
 
@@ -953,7 +953,7 @@ export default function HowToPlay() {
                   lineHeight: 1.5,
                 }}
               >
-                Every round adds 0.2 ORE to the Motherlode pool. Winners have a
+                Every round adds 0.2 GRID to the Motherlode pool. Winners have a
                 1/625 chance of triggering it — splitting the entire accumulated
                 jackpot.
               </div>
@@ -974,7 +974,7 @@ export default function HowToPlay() {
             { label: "ROUND TIME", value: "30s", icon: "⏱" },
             { label: "GRID SIZE", value: "5×5", icon: "▦" },
             { label: "ENTRY COST", value: "0.0001 ETH", icon: "◆" },
-            { label: "ORE SUPPLY", value: "5,000,000", icon: "🪨" },
+            { label: "GRID SUPPLY", value: "5,000,000", icon: "🪨" },
           ].map((stat, i) => (
             <div
               key={i}
@@ -1051,7 +1051,7 @@ export default function HowToPlay() {
               marginBottom: 10,
             }}
           >
-            READY TO MINE?
+            READY TO PLAY?
           </div>
           <div style={{ fontSize: 12, color: "#6a7b8e", marginBottom: 20 }}>
             Join the grid. Pick your cell. May the randomness be in your favor.
@@ -1094,7 +1094,7 @@ export default function HowToPlay() {
         }}
       >
         <span style={{ fontSize: 10, color: "#3a4a5e" }}>
-          MegaORE Protocol v3.0 — MegaETH Mainnet
+          The Grid Protocol v3.0 — MegaETH Mainnet
         </span>
         <span
           style={{

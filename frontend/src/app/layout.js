@@ -2,8 +2,8 @@ import Providers from "@/components/Providers";
 import "./globals.css";
 
 export const metadata = {
-  title: "MegaORE — Mining Terminal",
-  description: "5×5 grid mining game on MegaETH",
+  title: "The Grid — 5×5 On-Chain Game",
+  description: "5×5 grid game on MegaETH. Claim cells, win ETH + GRID tokens.",
 };
 
 export default function RootLayout({ children }) {
