@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { createPublicClient, createWalletClient, custom, http, parseEther, encodeFunctionData } from "viem";
+import { createPublicClient, createWalletClient, custom, http, fallback, parseEther, encodeFunctionData } from "viem";
 import { megaethChain } from "./Providers";
 
 // ═══════════════════════════════════════════════════════════════
@@ -77,11 +77,18 @@ for (let r = 0; r < GRID_SIZE; r++)
 // Our own public client — WE control the RPC, not MetaMask
 const publicClient = createPublicClient({
   chain: megaethChain,
-  transport: http("https://megaeth.drpc.org", {
-    timeout: 30_000,       // 30s timeout (default is 10s)
-    retryCount: 3,         // retry failed requests 3 times
-    retryDelay: 1000,      // 1s between retries
-  }),
+  transport: fallback([
+    http("https://megaeth.drpc.org", {
+      timeout: 30_000,
+      retryCount: 2,
+      retryDelay: 1000,
+    }),
+    http("https://mainnet.megaeth.com/rpc", {
+      timeout: 30_000,
+      retryCount: 2,
+      retryDelay: 2000,
+    }),
+  ]),
 });
 
 const fmt = (v, d = 4) => {
