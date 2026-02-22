@@ -77,7 +77,7 @@ for (let r = 0; r < GRID_SIZE; r++)
 // Our own public client — WE control the RPC, not MetaMask
 const publicClient = createPublicClient({
   chain: megaethChain,
-  transport: http("https://mainnet.megaeth.com/rpc", {
+  transport: http("https://megaeth.drpc.org", {
     timeout: 30_000,       // 30s timeout (default is 10s)
     retryCount: 3,         // retry failed requests 3 times
     retryDelay: 1000,      // 1s between retries
@@ -291,8 +291,8 @@ export default function MegaOreV2() {
 
   useEffect(() => {
     pollState();
-    // Fast poll: 1s always for real-time grid updates
-    pollRef.current = setInterval(pollState, 1000);
+    // Poll every 3s — fast enough for 30s rounds, avoids rate limits
+    pollRef.current = setInterval(pollState, 3000);
     return () => { clearInterval(pollRef.current); };
   }, [pollState]);
 
@@ -1215,7 +1215,7 @@ export default function MegaOreV2() {
           <b>⚠ DEBUG:</b> Round = 0 (not loading). Polls: {pollCount.current}.
           {pollError.current && <span> Error: {pollError.current}</span>}
           {!pollError.current && <span> No error caught — poll may not have run yet. Check console.</span>}
-          <br/>RPC: https://mainnet.megaeth.com/rpc | Contract: {GRID_ADDR.slice(0,10)}...
+          <br/>RPC: https://megaeth.drpc.org | Contract: {GRID_ADDR.slice(0,10)}...
         </div>
       )}
 

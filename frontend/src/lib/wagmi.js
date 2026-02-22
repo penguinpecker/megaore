@@ -9,7 +9,7 @@ export const megaethChain = defineChain({
   name: "MegaETH",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    default: { http: ["https://mainnet.megaeth.com/rpc"] },
+    default: { http: ["https://megaeth.drpc.org"] },
   },
   blockExplorers: {
     default: { name: "MegaETH Explorer", url: "https://megaethscan.io" },
