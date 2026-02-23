@@ -5,9 +5,9 @@ import { createPublicClient, createWalletClient, custom, http, fallback, parseEt
 import { megaethChain } from "./Providers";
 
 // ═══════════════════════════════════════════════════════════════
-// V3 CONTRACT ABI — TheGrid (OreGrid V3): Guaranteed Winners
-// OreGrid V3: 0xa3230e290205FfEf5a1f71e52b5aDba69a88208d
-// OreToken V3: 0x63Fb06feD80002818428673eE69D4dF1b1923e3A
+// V4 CONTRACT ABI — TheGrid: Guaranteed Winners + Bonus Rounds
+// TheGrid V4: 0x0db11626CF23941f820524f9119f6f73dEd92C75
+// GridToken V4: 0xAb9bE829914C745a91479091223EbF0932F009E6
 // Chain: MegaETH Mainnet (4326)
 // ═══════════════════════════════════════════════════════════════
 const GRID_ABI = [
@@ -58,6 +58,9 @@ const GRID_ABI = [
     outputs: [{ name: "", type: "uint256" }] },
   { name: "withdraw", type: "function", stateMutability: "nonpayable",
     inputs: [], outputs: [] },
+  { name: "isBonusRound", type: "function", stateMutability: "view",
+    inputs: [{ name: "roundId", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }] },
 ];
 
 const TOKEN_ABI = [
@@ -66,15 +69,17 @@ const TOKEN_ABI = [
     outputs: [{ name: "", type: "uint256" }] },
 ];
 
-const GRID_ADDR = "0xa3230e290205FfEf5a1f71e52b5aDba69a88208d";
-const TOKEN_ADDR = "0x63Fb06feD80002818428673eE69D4dF1b1923e3A";
+const GRID_ADDR = "0x0db11626CF23941f820524f9119f6f73dEd92C75";
+const TOKEN_ADDR = "0xAb9bE829914C745a91479091223EbF0932F009E6";
 const CELL_COST = "0.0001";
 const ROUND_DURATION = 30;
 const GRID_SIZE = 5;
 const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 const GRID_CELLS_SELECTOR = "0x6e0cf737"; // getCellCounts() — returns uint16[25] player counts
-const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-v3-backup";
-const API_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-api";
+const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/grid-backup-v4";
+const SUPABASE_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdndwYmdnamxjdW1jbWxsaXVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNTQwOTYsImV4cCI6MjA4NDkzMDA5Nn0.bND-YkkI4REBdcGb6IM7F1VhQvOp8ykj_YNJg9wT4ik";
+const dbHeaders = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
 
 const CELL_LABELS = [];
 for (let r = 0; r < GRID_SIZE; r++)
@@ -338,10 +343,14 @@ export default function TheGrid() {
     historyLoadingRef.current = true;
     setHistoryLoading(true);
     try {
-      const r = await fetch(`${API_URL}?action=rounds&limit=${limit}&offset=${offset}`);
-      const d = await r.json();
-      historyTotal.current = d.total || 0;
-      const results = (d.rounds || []).map(r => ({
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/rounds?select=*&order=round_id.desc&limit=${limit}&offset=${offset}`,
+        { headers: { ...dbHeaders, Prefer: "count=exact" } }
+      );
+      const total = parseInt(r.headers.get("content-range")?.split("/")[1] || "0", 10);
+      historyTotal.current = total;
+      const data = await r.json();
+      const results = (data || []).map(r => ({
         roundId: r.round_id,
         cell: r.winning_cell,
         players: r.total_players,
@@ -395,10 +404,15 @@ export default function TheGrid() {
   const fetchUserHistory = async (offset, limit = 10) => {
     if (!address) return [];
     try {
-      const r = await fetch(`${API_URL}?action=player_history&address=${address}&limit=${limit}&offset=${offset}`);
-      const d = await r.json();
-      userHistoryTotal.current = d.total || 0;
-      return (d.history || []).map(h => ({
+      const addr = address.toLowerCase();
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/round_players?select=round_id,player_address,cell,won,payout,rounds!inner(winning_cell,total_miners,pot,resolved_at,tx_hash)&player_address=eq.${addr}&order=round_id.desc&limit=${limit}&offset=${offset}`,
+        { headers: { ...dbHeaders, Prefer: "count=exact" } }
+      );
+      const total = parseInt(r.headers.get("content-range")?.split("/")[1] || "0", 10);
+      userHistoryTotal.current = total;
+      const data = await r.json();
+      return (data || []).map(h => ({
         roundId: h.round_id,
         cell: h.cell,
         won: h.won,
