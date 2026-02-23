@@ -917,7 +917,7 @@ export default function TheGrid() {
                         fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
                         color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
                       }}>
-                        {isWin ? "+" : "-"}{displayAmt.toFixed(4)}
+                        {isWin ? "+" : "-"}{displayAmt.toFixed(5)}
                       </span>
                     </div>
                   );
@@ -1234,7 +1234,7 @@ export default function TheGrid() {
                         fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
                         color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
                       }}>
-                        {isWin ? "+" : "-"}{displayAmt.toFixed(4)} ETH
+                        {isWin ? "+" : "-"}{displayAmt.toFixed(5)} ETH
                       </span>
                     </div>
                   );
