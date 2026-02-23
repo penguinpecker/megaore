@@ -78,7 +78,7 @@ const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 const GRID_CELLS_SELECTOR = "0x6e0cf737"; // getCellCounts() — returns uint16[25] player counts
 const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/grid-backup-v4";
 const SUPABASE_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdndwYmdnamxjdW1jbWxsaXVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNTQwOTYsImV4cCI6MjA4NDkzMDA5Nn0.bND-YkkI4REBdcGb6IM7F1VhQvOp8ykj_YNJg9wT4ik";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdndwYmdnamxjdW1jbWxsaXVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2MzA2NjIsImV4cCI6MjA4NjIwNjY2Mn0.yrkg3mv62F-DiGA8-cajSSkwnhKBXRbVlr4ye6bdfTc";
 const dbHeaders = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
 
 const CELL_LABELS = [];
@@ -353,7 +353,7 @@ export default function TheGrid() {
       const results = (data || []).map(r => ({
         roundId: r.round_id,
         cell: r.winning_cell,
-        players: r.total_players,
+        players: r.total_miners,
         pot: r.pot,
         resolved: true,
         txHash: r.tx_hash,
