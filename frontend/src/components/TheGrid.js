@@ -5,9 +5,9 @@ import { createPublicClient, createWalletClient, custom, http, fallback, parseEt
 import { megaethChain } from "./Providers";
 
 // ═══════════════════════════════════════════════════════════════
-// V3 CONTRACT ABI — TheGrid (OreGrid V3): Guaranteed Winners
-// OreGrid V3: 0xa3230e290205FfEf5a1f71e52b5aDba69a88208d
-// OreToken V3: 0x63Fb06feD80002818428673eE69D4dF1b1923e3A
+// V4 CONTRACT ABI — TheGrid: Guaranteed Winners + Bonus Rounds
+// TheGrid V4: 0x0db11626CF23941f820524f9119f6f73dEd92C75
+// GridToken V4: 0xAb9bE829914C745a91479091223EbF0932F009E6
 // Chain: MegaETH Mainnet (4326)
 // ═══════════════════════════════════════════════════════════════
 const GRID_ABI = [
@@ -58,6 +58,9 @@ const GRID_ABI = [
     outputs: [{ name: "", type: "uint256" }] },
   { name: "withdraw", type: "function", stateMutability: "nonpayable",
     inputs: [], outputs: [] },
+  { name: "isBonusRound", type: "function", stateMutability: "view",
+    inputs: [{ name: "roundId", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }] },
 ];
 
 const TOKEN_ABI = [
@@ -66,15 +69,17 @@ const TOKEN_ABI = [
     outputs: [{ name: "", type: "uint256" }] },
 ];
 
-const GRID_ADDR = "0xa3230e290205FfEf5a1f71e52b5aDba69a88208d";
-const TOKEN_ADDR = "0x63Fb06feD80002818428673eE69D4dF1b1923e3A";
+const GRID_ADDR = "0x0db11626CF23941f820524f9119f6f73dEd92C75";
+const TOKEN_ADDR = "0xAb9bE829914C745a91479091223EbF0932F009E6";
 const CELL_COST = "0.0001";
 const ROUND_DURATION = 30;
 const GRID_SIZE = 5;
 const TOTAL_CELLS = GRID_SIZE * GRID_SIZE;
 const GRID_CELLS_SELECTOR = "0x6e0cf737"; // getCellCounts() — returns uint16[25] player counts
-const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-v3-backup";
-const API_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/megaore-api";
+const RESOLVER_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co/functions/v1/grid-backup-v4";
+const SUPABASE_URL = "https://dqvwpbggjlcumcmlliuj.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdndwYmdnamxjdW1jbWxsaXVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA2MzA2NjIsImV4cCI6MjA4NjIwNjY2Mn0.yrkg3mv62F-DiGA8-cajSSkwnhKBXRbVlr4ye6bdfTc";
+const dbHeaders = { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
 
 const CELL_LABELS = [];
 for (let r = 0; r < GRID_SIZE; r++)
@@ -158,6 +163,28 @@ export default function TheGrid() {
   const lastRoundRef = useRef(0);
   const resolverCalledForRound = useRef(0);
   const resolvedRef = useRef(false);
+
+  // ─── Lock body scroll when mobile sidebar is open ───
+  useEffect(() => {
+    if (mobileMenu) {
+      const scrollY = window.scrollY;
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+      return () => {
+        document.body.style.overflow = "";
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.left = "";
+        document.body.style.right = "";
+        document.body.style.width = "";
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [mobileMenu]);
 
   // Get the embedded wallet address
   const wallet = wallets.find((w) => w.walletClientType === "privy") || wallets[0];
@@ -338,13 +365,17 @@ export default function TheGrid() {
     historyLoadingRef.current = true;
     setHistoryLoading(true);
     try {
-      const r = await fetch(`${API_URL}?action=rounds&limit=${limit}&offset=${offset}`);
-      const d = await r.json();
-      historyTotal.current = d.total || 0;
-      const results = (d.rounds || []).map(r => ({
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/rounds?select=*&contract_version=eq.4&order=round_id.desc&limit=${limit}&offset=${offset}`,
+        { headers: { ...dbHeaders, Prefer: "count=exact" } }
+      );
+      const total = parseInt(r.headers.get("content-range")?.split("/")[1] || "0", 10);
+      historyTotal.current = total;
+      const data = await r.json();
+      const results = (data || []).map(r => ({
         roundId: r.round_id,
         cell: r.winning_cell,
-        players: r.total_players,
+        players: r.total_miners,
         pot: r.pot,
         resolved: true,
         txHash: r.tx_hash,
@@ -395,10 +426,15 @@ export default function TheGrid() {
   const fetchUserHistory = async (offset, limit = 10) => {
     if (!address) return [];
     try {
-      const r = await fetch(`${API_URL}?action=player_history&address=${address}&limit=${limit}&offset=${offset}`);
-      const d = await r.json();
-      userHistoryTotal.current = d.total || 0;
-      return (d.history || []).map(h => ({
+      const addr = address.toLowerCase();
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/round_players?select=round_id,player_address,cell,won,payout,rounds!inner(winning_cell,total_miners,pot,resolved_at,tx_hash,contract_version)&player_address=eq.${addr}&rounds.contract_version=eq.4&order=round_id.desc&limit=${limit}&offset=${offset}`,
+        { headers: { ...dbHeaders, Prefer: "count=exact" } }
+      );
+      const total = parseInt(r.headers.get("content-range")?.split("/")[1] || "0", 10);
+      userHistoryTotal.current = total;
+      const data = await r.json();
+      return (data || []).map(h => ({
         roundId: h.round_id,
         cell: h.cell,
         won: h.won,
@@ -712,10 +748,11 @@ export default function TheGrid() {
           <button style={{
             ...S.menuBtn,
             display: "none", alignItems: "center", justifyContent: "center",
-            width: 38, height: 38, fontSize: 18,
+            width: 44, height: 44, fontSize: 20,
             border: "1px solid rgba(255,136,0,0.3)",
             background: "rgba(255,136,0,0.06)",
             color: "#ff8800",
+            WebkitTapHighlightColor: "transparent",
           }} className="grid-menu-btn" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
         </div>
       </header>
@@ -903,7 +940,7 @@ export default function TheGrid() {
                         fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
                         color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
                       }}>
-                        {isWin ? "+" : "-"}{displayAmt.toFixed(4)}
+                        {isWin ? "+" : "-"}{displayAmt.toFixed(5)}
                       </span>
                     </div>
                   );
@@ -1074,7 +1111,11 @@ export default function TheGrid() {
         </div>
 
         {/* ─── SIDEBAR ─── */}
-        <div className={`grid-sidebar-backdrop ${mobileMenu ? "open" : ""}`} onClick={() => setMobileMenu(false)} />
+        <div
+          className={`grid-sidebar-backdrop ${mobileMenu ? "open" : ""}`}
+          onClick={() => setMobileMenu(false)}
+          onTouchMove={(e) => e.preventDefault()}
+        />
         <div style={S.sidebar} className={`grid-sidebar ${mobileMenu ? "open" : ""}`}>
           {/* Mobile sticky header */}
           <div className="grid-sidebar-header">
@@ -1084,10 +1125,11 @@ export default function TheGrid() {
             <button
               onClick={() => setMobileMenu(false)}
               style={{
-                background: "rgba(255,136,0,0.08)", border: "1px solid rgba(255,136,0,0.2)",
-                color: "#ff8800", fontSize: 14, fontWeight: 700, cursor: "pointer",
-                padding: "6px 12px", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace",
-                letterSpacing: 1,
+                background: "rgba(255,136,0,0.1)", border: "1px solid rgba(255,136,0,0.3)",
+                color: "#ff8800", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                padding: "10px 18px", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: 1, minHeight: 44, minWidth: 44,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
               ✕ CLOSE
@@ -1220,7 +1262,7 @@ export default function TheGrid() {
                         fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 600,
                         color: isWin ? "#00cc88" : "#ff3355", textAlign: "right",
                       }}>
-                        {isWin ? "+" : "-"}{displayAmt.toFixed(4)} ETH
+                        {isWin ? "+" : "-"}{displayAmt.toFixed(5)} ETH
                       </span>
                     </div>
                   );
@@ -1349,34 +1391,40 @@ export default function TheGrid() {
           .grid-mobile-user-history { display: block !important; }
           .grid-sidebar-backdrop {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.7); z-index: 999;
-            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.75); z-index: 9998;
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            touch-action: none;
           }
           .grid-sidebar-backdrop.open { display: block !important; }
           .grid-sidebar {
-            position: fixed !important; top: 0 !important; right: 0 !important;
-            width: 88vw !important; max-width: 400px !important; height: 100vh !important;
-            height: 100dvh !important;
-            z-index: 1001 !important;
+            position: fixed !important; top: 0 !important; right: 0 !important; bottom: 0 !important;
+            width: 90vw !important; max-width: 420px !important;
+            height: 100% !important; height: 100dvh !important;
+            z-index: 9999 !important;
             overflow-y: auto !important; overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
             background: #0a0e14 !important;
-            border-left: 1px solid rgba(255,136,0,0.2) !important;
+            border-left: 1px solid rgba(255,136,0,0.25) !important;
             padding: 0 16px 16px !important;
-            max-height: 100vh !important; max-height: 100dvh !important;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
             transform: translateX(100%) !important;
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
             box-shadow: none !important;
+            will-change: transform !important;
+            overscroll-behavior: contain !important;
           }
           .grid-sidebar.open {
             transform: translateX(0) !important;
-            box-shadow: -8px 0 30px rgba(0,0,0,0.5) !important;
+            box-shadow: -8px 0 40px rgba(0,0,0,0.6) !important;
           }
           .grid-sidebar-header {
             position: sticky !important; top: 0 !important; z-index: 10 !important;
             background: #0a0e14 !important;
-            padding: 14px 0 10px !important;
+            padding: 16px 0 12px !important;
             margin: 0 -16px !important; padding-left: 16px !important; padding-right: 16px !important;
-            border-bottom: 1px solid rgba(255,136,0,0.1) !important;
+            padding-top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+            border-bottom: 1px solid rgba(255,136,0,0.15) !important;
             display: flex !important; justify-content: space-between !important; align-items: center !important;
           }
           .grid-game-area {
@@ -1437,7 +1485,7 @@ const S = {
     background: "radial-gradient(ellipse at 30% 20%, #0f1923 0%, #0a0c0f 50%, #080a0d 100%)",
     color: "#c8d6e5", minHeight: "100vh",
     display: "flex", flexDirection: "column",
-    position: "relative", overflow: "hidden", overflowY: "auto",
+    position: "relative",
   },
   scanOverlay: {
     position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
