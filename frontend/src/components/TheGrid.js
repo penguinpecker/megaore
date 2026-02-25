@@ -147,6 +147,9 @@ export default function TheGrid() {
   const [withdrawAmt, setWithdrawAmt] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [walletDropdown, setWalletDropdown] = useState(false); // dropdown open
+  const [walletView, setWalletView] = useState("menu"); // "menu" | "withdraw"
+  const walletDropdownRef = useRef(null);
   const [lastResult, setLastResult] = useState(null); // { roundId, cell, players, pot, txHash }
   const [roundHistory, setRoundHistory] = useState([]); // array of ALL loaded past results, newest first
   const [moneyFlow, setMoneyFlow] = useState(false);
@@ -185,6 +188,23 @@ export default function TheGrid() {
       };
     }
   }, [mobileMenu]);
+
+  // ─── Close wallet dropdown on click outside ───
+  useEffect(() => {
+    if (!walletDropdown) return;
+    const handler = (e) => {
+      if (walletDropdownRef.current && !walletDropdownRef.current.contains(e.target)) {
+        setWalletDropdown(false);
+        setWalletView("menu");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, [walletDropdown]);
 
   // Get the embedded wallet address
   const wallet = wallets.find((w) => w.walletClientType === "privy") || wallets[0];
@@ -741,9 +761,95 @@ export default function TheGrid() {
           {!authenticated ? (
             <button style={S.loginBtn} onClick={login}>⚡ LOGIN</button>
           ) : (
-            <button style={S.loginBtn} className="grid-header-wallet-btn" onClick={logout}>
-              {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "LOGOUT"}
-            </button>
+            <div ref={walletDropdownRef} style={{ position: "relative" }} className="grid-header-wallet-btn">
+              <button style={{
+                ...S.loginBtn,
+                display: "flex", alignItems: "center", gap: 6,
+              }} onClick={() => { setWalletDropdown(!walletDropdown); setWalletView("menu"); }}>
+                {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "WALLET"}
+                <span style={{ fontSize: 8, opacity: 0.6, transition: "transform 0.2s", transform: walletDropdown ? "rotate(180deg)" : "none" }}>▼</span>
+              </button>
+              {walletDropdown && walletView === "menu" && (
+                <div className="grid-wallet-dropdown" style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0,
+                  width: 210, background: "#0e1218",
+                  border: "1px solid rgba(255,136,0,0.25)", borderRadius: 8,
+                  overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+                  zIndex: 9999, animation: "dropIn 0.15s ease-out",
+                }}>
+                  <button onClick={() => { copyAddress(); setWalletDropdown(false); }} style={S.dropdownItem}>
+                    <span style={S.dropdownIcon}>📋</span> {copied ? "Copied!" : "Copy Address"}
+                  </button>
+                  <div style={S.dropdownDivider} />
+                  <button onClick={() => { exportWallet(); setWalletDropdown(false); }} style={S.dropdownItem}>
+                    <span style={S.dropdownIcon}>🔑</span> Export Key
+                  </button>
+                  <div style={S.dropdownDivider} />
+                  <button onClick={() => setWalletView("withdraw")} style={S.dropdownItem}>
+                    <span style={S.dropdownIcon}>↗</span> Withdraw
+                  </button>
+                  <div style={S.dropdownDivider} />
+                  <button onClick={() => { logout(); setWalletDropdown(false); }} style={{ ...S.dropdownItem, color: "#ff3355" }}>
+                    <span style={S.dropdownIcon}>⏻</span> Logout
+                  </button>
+                </div>
+              )}
+              {walletDropdown && walletView === "withdraw" && (
+                <div className="grid-wallet-dropdown" style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0,
+                  width: 300, background: "#0e1218",
+                  border: "1px solid rgba(255,136,0,0.25)", borderRadius: 8,
+                  overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+                  zIndex: 9999, animation: "dropIn 0.15s ease-out",
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "12px 14px", borderBottom: "1px solid rgba(255,136,0,0.12)",
+                    background: "rgba(255,136,0,0.04)",
+                  }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#ff8800", letterSpacing: 1.5 }}>↗ WITHDRAW ETH</span>
+                    <button onClick={() => setWalletView("menu")} style={{
+                      fontSize: 10, color: "#6a7b8e", cursor: "pointer", background: "none",
+                      border: "1px solid rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: 4,
+                      fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.5,
+                    }}>◀ BACK</button>
+                  </div>
+                  <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, padding: "0 2px" }}>
+                      <span style={{ color: "#4a5a6e" }}>Available</span>
+                      <span style={{ color: "#ff8800", fontWeight: 600, cursor: "pointer" }} onClick={() => setWithdrawAmt(fmt(ethBalance, 6))}>{fmt(ethBalance)} ETH (MAX)</span>
+                    </div>
+                    <input
+                      placeholder="Destination address (0x...)"
+                      value={withdrawAddr}
+                      onChange={(e) => setWithdrawAddr(e.target.value)}
+                      style={S.dropdownInput}
+                    />
+                    <input
+                      placeholder="Amount in ETH"
+                      value={withdrawAmt}
+                      onChange={(e) => setWithdrawAmt(e.target.value)}
+                      style={S.dropdownInput}
+                    />
+                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                      <button
+                        style={{ ...S.claimBtn, flex: 1, fontSize: 11, padding: "10px", opacity: withdrawing ? 0.6 : 1 }}
+                        onClick={withdrawETH}
+                        disabled={withdrawing}
+                      >
+                        {withdrawing ? "SENDING..." : "SEND"}
+                      </button>
+                      <button
+                        style={{ ...S.claimBtn, fontSize: 11, padding: "10px 16px", borderColor: "#4a5a6e", color: "#6a7b8e", background: "none" }}
+                        onClick={() => { setWalletDropdown(false); setWalletView("menu"); setWithdrawAddr(""); setWithdrawAmt(""); }}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           <button style={{
             ...S.menuBtn,
@@ -753,7 +859,7 @@ export default function TheGrid() {
             background: "rgba(255,136,0,0.06)",
             color: "#ff8800",
             WebkitTapHighlightColor: "transparent",
-          }} className="grid-menu-btn" onClick={() => setMobileMenu(!mobileMenu)}>☰</button>
+          }} className="grid-menu-btn" onClick={() => { setMobileMenu(!mobileMenu); setWalletDropdown(false); }}>☰</button>
         </div>
       </header>
 
@@ -914,8 +1020,8 @@ export default function TheGrid() {
                 <span style={{ fontSize: 9, color: "#4a5a6e", letterSpacing: 1.5, fontWeight: 700 }}>CELL</span>
                 <span style={{ fontSize: 9, color: "#4a5a6e", letterSpacing: 1.5, fontWeight: 700, textAlign: "right" }}>P&L</span>
               </div>
-              <div style={{ maxHeight: 200, overflowY: "auto" }}>
-                {userHistory.slice(0, 10).map((h, i) => {
+              <div className="grid-user-history-scroll" style={{ maxHeight: 240, overflowY: "auto" }}>
+                {userHistory.map((h, i) => {
                   const isWin = h.won;
                   const displayAmt = isWin
                     ? Number(BigInt(h.payout)) / 1e18
@@ -946,14 +1052,34 @@ export default function TheGrid() {
                   );
                 })}
               </div>
-              {userHistory.length > 10 && (
+              {userHistory.length > 0 && userHistoryOffset.current < userHistoryTotal.current && (
                 <div style={{
                   padding: "8px 16px", textAlign: "center",
                   borderTop: "1px solid rgba(255,136,0,0.1)",
                   background: "rgba(255,136,0,0.02)",
-                  fontSize: 10, color: "#5a6a7e", letterSpacing: 1,
                 }}>
-                  OPEN MENU FOR FULL HISTORY
+                  <button
+                    onClick={() => {
+                      setUserHistoryLoading(true);
+                      fetchUserHistory(userHistoryOffset.current, 10).then(results => {
+                        setUserHistory(prev => {
+                          const ids = new Set(prev.map(h => h.roundId));
+                          return [...prev, ...results.filter(r => !ids.has(r.roundId))];
+                        });
+                        userHistoryOffset.current += results.length;
+                        setUserHistoryLoading(false);
+                      });
+                    }}
+                    style={{
+                      width: "100%", padding: "6px 0",
+                      background: "none", border: "1px solid rgba(255,136,0,0.15)",
+                      borderRadius: 4, color: "#ff8800", fontSize: 10,
+                      fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+                      letterSpacing: 1, cursor: "pointer",
+                    }}
+                  >
+                    {userHistoryLoading ? "SCANNING..." : "LOAD MORE"}
+                  </button>
                 </div>
               )}
             </div>
@@ -1175,52 +1301,6 @@ export default function TheGrid() {
             </Panel>
           )}
 
-          {/* Wallet Actions */}
-          {authenticated && (
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ ...S.claimBtn, fontSize: 10, padding: "10px 12px", flex: 1 }} onClick={() => setShowWithdraw(!showWithdraw)}>
-                ↗ WITHDRAW
-              </button>
-              <button style={{ ...S.claimBtn, fontSize: 10, padding: "10px 12px", flex: 1, borderColor: "#6a7b8e", color: "#8a9bae", background: "rgba(255,255,255,0.03)" }} onClick={exportWallet}>
-                🔑 EXPORT KEY
-              </button>
-            </div>
-          )}
-
-          {/* Withdraw Form */}
-          {showWithdraw && authenticated && (
-            <div style={{ border: "1px solid rgba(255,136,0,0.15)", borderRadius: 8, padding: 14, background: "rgba(255,136,0,0.03)" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#ff8800", letterSpacing: 1.5, marginBottom: 10 }}>WITHDRAW ETH</div>
-              <input
-                placeholder="Destination address (0x...)"
-                value={withdrawAddr}
-                onChange={(e) => setWithdrawAddr(e.target.value)}
-                style={{ width: "100%", padding: "8px 10px", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,136,0,0.15)", borderRadius: 4, color: "#c8d6e5", marginBottom: 8, outline: "none" }}
-              />
-              <input
-                placeholder="Amount in ETH (e.g. 0.01)"
-                value={withdrawAmt}
-                onChange={(e) => setWithdrawAmt(e.target.value)}
-                style={{ width: "100%", padding: "8px 10px", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,136,0,0.15)", borderRadius: 4, color: "#c8d6e5", marginBottom: 10, outline: "none" }}
-              />
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  style={{ ...S.claimBtn, fontSize: 10, padding: "10px 12px", flex: 1, opacity: withdrawing ? 0.6 : 1 }}
-                  onClick={withdrawETH}
-                  disabled={withdrawing}
-                >
-                  {withdrawing ? "SENDING..." : "SEND"}
-                </button>
-                <button
-                  style={{ ...S.claimBtn, fontSize: 10, padding: "10px 12px", flex: 1, borderColor: "#4a5a6e", color: "#6a7b8e", background: "none" }}
-                  onClick={() => setShowWithdraw(false)}
-                >
-                  CANCEL
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Error */}
           {error && (
             <div style={S.errorBox} onClick={() => setError(null)}>⚠ {error.slice(0, 120)}</div>
@@ -1386,6 +1466,16 @@ export default function TheGrid() {
           50% { text-shadow: 0 0 12px #ff8800, 0 0 24px #ff880044; }
           100% { text-shadow: 0 0 4px #ff8800; }
         }
+        @keyframes dropIn {
+          from { opacity: 0; transform: translateY(-6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .grid-user-history-scroll::-webkit-scrollbar { width: 4px; }
+        .grid-user-history-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        .grid-user-history-scroll::-webkit-scrollbar-thumb { background: rgba(255,136,0,0.25); border-radius: 2px; }
+        @media (max-width: 768px) {
+          .grid-wallet-dropdown { width: calc(100vw - 32px) !important; max-width: 300px !important; right: -10px !important; }
+        }
         @media (max-width: 768px) {
           .grid-main { flex-direction: column !important; }
           .grid-mobile-user-history { display: block !important; }
@@ -1438,7 +1528,7 @@ export default function TheGrid() {
           }
           .grid-header-stat { display: none !important; }
           .grid-mobile-balances { display: flex !important; }
-          .grid-header-wallet-btn { display: none !important; }
+          .grid-header-wallet-btn { font-size: 10px !important; padding: 6px 10px !important; }
           .grid-menu-btn { display: flex !important; }
         }
         @media (min-width: 769px) {
@@ -1584,4 +1674,20 @@ const S = {
   footer: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", borderTop: "1px solid rgba(255,136,0,0.08)", background: "rgba(10,12,15,0.95)", zIndex: 10, position: "relative" },
   greenDot: { display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#ff8800", boxShadow: "0 0 6px #ff880088" },
   gridOnline: { fontSize: 12, fontWeight: 700, color: "#ff8800", letterSpacing: 1.5, animation: "scanGlow 3s ease-in-out infinite" },
+  dropdownItem: {
+    display: "flex", alignItems: "center", gap: 10,
+    padding: "12px 14px", fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11, color: "#c8d6e5", cursor: "pointer",
+    border: "none", background: "none", width: "100%",
+    textAlign: "left", letterSpacing: 0.5,
+    WebkitTapHighlightColor: "transparent",
+  },
+  dropdownIcon: { fontSize: 14, width: 20, textAlign: "center" },
+  dropdownDivider: { height: 1, background: "rgba(255,255,255,0.06)" },
+  dropdownInput: {
+    width: "100%", padding: "10px 12px", fontSize: 11,
+    fontFamily: "'JetBrains Mono', monospace",
+    background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,136,0,0.15)",
+    borderRadius: 6, color: "#c8d6e5", outline: "none", letterSpacing: 0.3,
+  },
 };
